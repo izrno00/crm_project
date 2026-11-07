@@ -115,7 +115,7 @@ Requirement IDs are used for traceability in development and testing.
 | AUTH-3 | Owners sign in with **email and password**, and can sign out. |
 | AUTH-4 | **Forgot password:** the owner enters their email, receives a reset link and sets a new password. |
 | AUTH-5 | Sessions persist between visits. When a session expires, the owner is sent to the sign-in page and returned to where they were after signing in. |
-| AUTH-6 | Owners can change their **name**, their **login email** (the new address must be confirmed via email) and their **password**. |
+| AUTH-6 | Owners can change their **name**, their **login email** and their **password**. A login email change must be confirmed from **both the current and the new address**. A password change asks for the **current password**, then the new password twice. |
 | AUTH-7 | All account emails (invitation, password reset, email change) are **Flowdesk-branded** and come from a Flowdesk address. |
 | AUTH-8 | All pages except the landing, sign-in, password and invitation pages require a signed-in user. |
 | AUTH-9 | The design must allow adding **public self-registration later** without reworking onboarding. A self-registered business would start in a "pending" state until approved. |

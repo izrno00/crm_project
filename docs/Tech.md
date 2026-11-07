@@ -178,6 +178,7 @@ supabase/
   tests/rls.sql                      RLS isolation checks
 scripts/
   seed-dev-users.ts                  Creates dev auth users through the Admin API
+  dev-auth-link.ts                   Prints invite / recovery links without sending email (dev only)
 proxy.ts                             (existing) calls the session refresh
 docs/                                PRD.md, Tech.md, DB.md, ui-rules.md
 ```
@@ -287,6 +288,12 @@ export async function requirePlatformAdmin() {
 | Providers | Email only (password). No OAuth, no magic link |
 | **Allow new users to sign up** | **Off**. Accounts are created only by admin invite. The Admin API still works |
 | Confirm email | On |
+| Password rules | Minimum length **8**, requirements **letters and digits** (zod enforces the same rule in the app) |
+| Secure email change | **On**: the old and the new address must both confirm |
+| Secure password change | **Off**: the app asks for the current password itself (§6.2) |
+| Email link expiry (OTP expiration) | **86400 s (24 hours)**, shared by invite, reset and email change links. The admin can resend an invite |
+| Sessions | No timebox or inactivity timeout. A session lasts until the user signs out |
+| Bot protection | Supabase built-in rate limits only (no CAPTCHA) |
 | Site URL | `NEXT_PUBLIC_APP_URL` |
 | Redirect URLs | `http://localhost:3000/**`, `https://*-<team>.vercel.app/**` (dev project), `https://app.<domain>/**` (prod project) |
 | SMTP | Resend: host `smtp.resend.com`, port 465, user `resend`, password = a Resend API key limited to sending. Sender `Flowdesk <auth@mail.<domain>>`. Before the domain exists, use Supabase's default mailer, which only delivers to the project team's addresses and is heavily rate-limited |
@@ -305,12 +312,13 @@ Email template links (hosted templates, set per environment):
 | Flow | Implementation |
 |---|---|
 | **Sign in** | Server action → `supabase.auth.signInWithPassword`. Redirect to a validated `next` param (relative paths only) or `/dashboard`. Admins without a business go to `/admin` |
-| **Sign out** | Server action → `supabase.auth.signOut()` → redirect `/login` |
-| **Confirm link** | `app/auth/confirm/route.ts`: `supabase.auth.verifyOtp({ type, token_hash })`, then redirect to `next` (validated as a relative path). On error, redirect `/login?error=link_invalid` |
+| **Sign out** | Server action → `supabase.auth.signOut({ scope: 'local' })` (this device only) → redirect `/login` |
+| **Confirm link** | `app/auth/confirm/route.ts`: `supabase.auth.verifyOtp({ type, token_hash })`, then redirect to `next` (validated as a relative path). If only `?code=` is present (Supabase's default PKCE templates), it uses `exchangeCodeForSession(code)` instead. On error, redirect `/login?error=link_invalid`. After an `email_change` verification, if the change is still waiting for the other address, it redirects with `notice=email_change_partial` |
 | **Accept invite** | `/accept-invite` (session already set by the confirm step): form for full name + password → `auth.updateUser({ password, data: { full_name } })` and update `profiles.full_name` → `/dashboard` |
 | **Forgot password** | `auth.resetPasswordForEmail(email)`. Always shows "If an account exists, we sent a link" (no account enumeration) |
 | **Update password** | `/update-password` → `auth.updateUser({ password })` |
-| **Change login email** | Settings → Account → `auth.updateUser({ email })`. Supabase sends confirmation; the change applies after confirming |
+| **Change login email** | Settings → Account → `auth.updateUser({ email })`. With Secure email change on, Supabase sends a link to each address; the change applies after both are confirmed |
+| **Change password** | Settings → Account → current password + new password twice. The current password is verified with `signInWithPassword` on a throwaway supabase-js client (`persistSession: false`) so the user's cookies are untouched, then `auth.updateUser({ password })` on the user client |
 | **Session refresh** | `proxy.ts` → `utils/supabase/middleware.ts` calls `supabase.auth.getClaims()` on every matched request and writes refreshed cookies |
 | **Route protection** | Optimistic: the proxy redirects requests with no session on `/dashboard`, `/inquiries`, `/settings` and `/admin` to `/login?next=…`. Authoritative: the DAL in every page, action and route |
 

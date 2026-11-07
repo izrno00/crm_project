@@ -5,7 +5,7 @@
 | Database | Supabase Postgres (dev project `zbpimhaqjuabdzjruxjd`; prod project created before launch) |
 | Schemas used | `public` (exposed through the Supabase Data API), `private` (internal helpers, not exposed), `auth` and `storage` (managed by Supabase) |
 | Related | [PRD.md](PRD.md) (product requirements), [Tech.md](Tech.md) (architecture) |
-| Status | Design agreed. Not yet migrated (the database is currently empty) |
+| Status | Migrated to the dev project on 2026-11-07 (8 migrations in `supabase/migrations/`). Prod not created yet |
 
 This document is the source of truth for the schema. Migrations in `supabase/migrations/` implement it. If the two ever differ, update this document in the same change.
 
@@ -348,7 +348,7 @@ For list filters, query the view but **filter on the base columns** (`answered_a
 ## 7. Functions and triggers
 
 ### 7.1 Private helpers (schema `private`, not exposed by the API)
-All helpers are `security definer`, `stable`, with `set search_path = ''`. `authenticated` gets `usage` on schema `private` and `execute` on these functions only.
+All helpers are `security definer`, `stable`, with `set search_path = ''`. `authenticated` gets `usage` on schema `private` and `execute` on `member_business_ids`, `active_business_ids` and `is_platform_admin` only. `service_role` gets `usage` on schema `private` and `execute` on `generate_public_key` (it is the `inquiry_sources.public_key` default, and only the service role inserts sources or rotates keys). Execute on every other `private` function is revoked from `public`, `anon` and `authenticated`.
 
 ```sql
 create schema if not exists private;
@@ -551,7 +551,9 @@ Policies decide *which rows* a user can touch; grants decide *which columns*.
 ```sql
 revoke all on all tables in schema public from anon;
 
-revoke insert, update, delete on all tables in schema public from authenticated;
+-- TRUNCATE, REFERENCES and TRIGGER are not covered by RLS, so they are revoked too.
+revoke insert, update, delete, truncate, references, trigger
+  on all tables in schema public from authenticated;
 
 grant update (name, email, website, logo_path, timezone, notify_new_inquiry,
               bcc_replies, signature, sender_name, reply_to_email)
@@ -628,10 +630,10 @@ Seed data is never applied to production.
 
 Migration files are created with `supabase migration new <name>`; the CLI prefixes a timestamp.
 
-1. `extensions_and_enums`: `citext`, `pg_trgm`, the enum types, schema `private`
+1. `extensions_and_enums`: `citext`, `pg_trgm`, the enum types, schema `private`, and `private.generate_public_key()` (it must exist before `inquiry_sources`, which uses it as a column default)
 2. `core_tables`: `businesses`, `profiles`, `platform_admins`, `memberships`, `inquiry_sources`
 3. `inquiry_tables`: `customers`, `inquiries`, `messages`, `inquiry_events`, `rate_limits`
-4. `helper_functions_and_triggers`: the `private.*` helpers, `set_updated_at`, `handle_new_user`, `handle_message_status`
+4. `helper_functions_and_triggers`: the other `private.*` helpers, `set_updated_at`, `handle_new_user`, `handle_message_status`, and the `private` schema grants
 5. `rpc_functions_and_view`: `inquiries_view`, the service-only RPCs, the owner RPCs, and execute grants/revokes
 6. `rls_policies_and_grants`: enable RLS, the policies, and the column grants
 7. `indexes`

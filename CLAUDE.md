@@ -20,3 +20,4 @@ Rules:
 - Follow the architecture/tech docs before introducing new patterns
 - Follow the database schema before creating or changing tables.
 - Follow the UI design rules defined in "docs/ui-rules.md" before building UI
+- Whenever I ask you to do something related to Supabase you must know that you have MCP connection to my Supabase project, don't ever leave SQL or any other actions for me to complete, you do it yourself. Only let me know when you can't accomplish certain tasks and actions using MCP
