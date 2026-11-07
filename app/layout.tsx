@@ -29,7 +29,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={cn("h-full", "antialiased", geistMono.variable, "font-sans", notoSans.variable, ebGaramondHeading.variable)}
     >
-      <body className="min-h-full flex flex-col">
+      {/* Browser extensions often add attributes to <body> before React loads
+          (e.g. location="localhost"), which triggers a harmless hydration warning. */}
+      <body suppressHydrationWarning className="min-h-full flex flex-col">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           {children}
           <Toaster />

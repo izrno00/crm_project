@@ -28,12 +28,25 @@ export type SendEmailOptions = {
   subject: string;
   from?: string;
   replyTo?: string | string[];
+  bcc?: string | string[];
+  headers?: Record<string, string>;
 } & EmailBody;
 
+export type SendEmailRequestOptions = {
+  // Resend returns the original result instead of sending twice when the same key is reused.
+  idempotencyKey?: string;
+};
+
 // Returns Resend's { data, error } unchanged so callers decide how to handle failures.
-export const sendEmail = async ({ from, ...options }: SendEmailOptions) => {
-  return getResend().emails.send({
-    from: from || process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
-    ...options,
-  });
+export const sendEmail = async (
+  { from, ...options }: SendEmailOptions,
+  requestOptions?: SendEmailRequestOptions,
+) => {
+  return getResend().emails.send(
+    {
+      from: from || process.env.RESEND_FROM_EMAIL || DEFAULT_FROM,
+      ...options,
+    },
+    requestOptions,
+  );
 };

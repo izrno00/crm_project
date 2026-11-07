@@ -99,7 +99,7 @@ Requirement IDs are used for traceability in development and testing.
 | INT-4 | Flowdesk always validates submissions on its side: required fields, a valid email format and maximum lengths. Invalid submissions are rejected with a clear error the website can show. |
 | INT-5 | Flowdesk limits how many submissions it accepts in a short time period (per visitor and per website), and rejects oversized requests. |
 | INT-6 | **Optional spam trap (honeypot):** a website may include a hidden field that humans never fill in. If the field is filled, Flowdesk silently discards the submission, but the visitor still sees a normal success result. Websites that do **not** include this field must still work normally. |
-| INT-7 | A website can either show the result itself (for JavaScript-based forms), or have Flowdesk send the visitor back to a "thank you" page on the business's own website (for plain HTML forms). That page must be on one of the allowed addresses. |
+| INT-7 | A website can either show the result itself (for JavaScript-based forms), or have Flowdesk send the visitor back to a "thank you" page on the business's own website (for plain HTML forms). That page must be on one of the allowed addresses. If a plain HTML form does not name its own success or error page, Flowdesk shows its own simple result page instead: a "Thanks, your message was sent" page on success, or a page that lists which fields need fixing, with a **Go back** button that returns to the form with the visitor's text still in it. |
 | INT-8 | Each stored inquiry records **which connected website** it came from, and its submission date and time. |
 | INT-9 | If the email address has contacted this business before, the new inquiry is linked to the **existing customer**; otherwise a new customer is created. |
 | INT-10 | Visitors do **not** receive an automatic confirmation email in the MVP. |
@@ -132,7 +132,8 @@ The dashboard shows the owner, at a glance, what needs attention.
 | DASH-4 | **Needs attention**: unanswered inquiries, oldest first, with a link to the full list filtered to unanswered ones. |
 | DASH-5 | **Recent activity feed**: the last ~10 events for the business (inquiry received, reply sent, reply failed, marked as answered, archived), each linking to its inquiry. |
 | DASH-6 | Clicking a stat card opens the inquiry list filtered to that status. |
-| DASH-7 | When the business has no inquiries yet, the dashboard shows a helpful empty state that points to the Integration guide. |
+| DASH-7 | When the business has no inquiries yet, the dashboard shows a helpful empty state that explains inquiries appear once the website form is connected. It links to the Integration guide once that guide exists (the Integration tab is built after the dashboard). |
+| DASH-8 | Dashboard data is loaded when the page is opened or refreshed. It does not update live while the page stays open. |
 
 ### 5.4 Inquiry list
 

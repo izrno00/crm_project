@@ -2,12 +2,17 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect, notFound } from "next/navigation";
+import { connection } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
 // Data Access Layer (Tech.md §5.3). All session and membership reads go through here.
 // Pages, server actions and route handlers call these; they never read cookies directly.
 
 export const getSession = cache(async () => {
+  // Checking a session means checking whether its token has expired, which reads the
+  // current time (Date.now()). With Cache Components that is only allowed at request
+  // time, so mark this read as dynamic first. Everything that follows is request-time too.
+  await connection();
   const supabase = createClient(await cookies());
   const { data } = await supabase.auth.getClaims();
   if (!data?.claims) return null;

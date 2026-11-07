@@ -77,7 +77,7 @@ async function ensureBusiness(ownerId: string, name: string, slug: string, email
     p_slug: slug,
     p_email: email,
     p_website: "http://localhost:5500",
-    p_timezone: "UTC",
+    p_timezone: "Europe/Zagreb",
     p_sender_name: name,
     // Placeholder until a sending domain exists (Tech.md §8).
     p_sender_email: `${slug}@mail.flowdesk.invalid`,

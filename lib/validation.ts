@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_SEARCH_LENGTH, SORT_ORDERS, STATUS_FILTERS } from "@/lib/inquiry-list";
 import { en } from "@/lib/strings/en";
 
 const v = en.validation;
@@ -80,3 +81,18 @@ export const changePasswordSchema = z
     path: ["newPassword"],
     message: v.passwordUnchanged,
   });
+
+// The inquiry list's search params (Tech.md §11.3). Anything invalid falls back to its default
+// on its own, so a hand-edited URL never breaks the page. A repeated param (?page=2&page=3)
+// uses its first value.
+const firstValue = (value: unknown) => (Array.isArray(value) ? value[0] : value);
+
+export const inquiryListParamsSchema = z.object({
+  status: z.preprocess(firstValue, z.enum(STATUS_FILTERS)).catch("all"),
+  q: z
+    .preprocess(firstValue, z.string())
+    .transform((text) => text.trim().slice(0, MAX_SEARCH_LENGTH))
+    .catch(""),
+  sort: z.preprocess(firstValue, z.enum(SORT_ORDERS)).catch("desc"),
+  page: z.preprocess(firstValue, z.coerce.number().int().min(1).max(1_000_000)).catch(1),
+});

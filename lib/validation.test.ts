@@ -3,6 +3,7 @@ import {
   acceptInviteSchema,
   changePasswordSchema,
   emailSchema,
+  inquiryListParamsSchema,
   passwordSchema,
   setPasswordSchema,
   signInSchema,
@@ -111,5 +112,49 @@ describe("changePasswordSchema", () => {
   it("rejects a mismatched confirmation", () => {
     const result = changePasswordSchema.safeParse({ ...base, confirmPassword: "different1" });
     expect(result.error?.issues[0].path).toEqual(["confirmPassword"]);
+  });
+});
+
+describe("inquiryListParamsSchema", () => {
+  const defaults = { status: "all", q: "", sort: "desc", page: 1 };
+
+  it("uses the defaults for an empty query", () => {
+    expect(inquiryListParamsSchema.parse({})).toEqual(defaults);
+  });
+
+  it("accepts valid values", () => {
+    expect(
+      inquiryListParamsSchema.parse({ status: "awaiting", q: "jane", sort: "asc", page: "3" }),
+    ).toEqual({ status: "awaiting", q: "jane", sort: "asc", page: 3 });
+  });
+
+  it("accepts every status filter", () => {
+    for (const status of ["all", "unanswered", "new", "awaiting", "answered", "archived"]) {
+      expect(inquiryListParamsSchema.parse({ status }).status).toBe(status);
+    }
+  });
+
+  it("falls back to the default for each invalid value on its own", () => {
+    expect(inquiryListParamsSchema.parse({ status: "bogus", sort: "sideways", page: "-1" })).toEqual(defaults);
+    expect(inquiryListParamsSchema.parse({ status: "new", page: "abc" })).toEqual({ ...defaults, status: "new" });
+    expect(inquiryListParamsSchema.parse({ page: "1.5" }).page).toBe(1);
+    expect(inquiryListParamsSchema.parse({ page: "0" }).page).toBe(1);
+  });
+
+  it("uses the first value of a repeated param", () => {
+    expect(inquiryListParamsSchema.parse({ status: ["answered", "new"], page: ["2", "5"] })).toEqual({
+      ...defaults,
+      status: "answered",
+      page: 2,
+    });
+  });
+
+  it("trims the search text and cuts it to 100 characters", () => {
+    expect(inquiryListParamsSchema.parse({ q: "  jane  " }).q).toBe("jane");
+    expect(inquiryListParamsSchema.parse({ q: "x".repeat(150) }).q).toHaveLength(100);
+  });
+
+  it("ignores unknown params", () => {
+    expect(inquiryListParamsSchema.parse({ utm_source: "x" })).toEqual(defaults);
   });
 });

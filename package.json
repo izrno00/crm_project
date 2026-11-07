@@ -9,10 +9,12 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed:dev": "node --env-file=.env.local scripts/seed-dev-users.ts",
+    "test-site": "node --env-file=.env.local scripts/test-site/serve.ts",
     "auth:link": "node --env-file=.env.local scripts/dev-auth-link.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
+    "@react-email/components": "^1.0.12",
     "@remixicon/react": "^4.9.0",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.119.0",
@@ -22,6 +24,7 @@
     "next-themes": "^0.4.6",
     "react": "19.3.0",
     "react-dom": "19.3.0",
+    "recharts": "^3.8.0",
     "resend": "^6.37.0",
     "server-only": "^0.0.1",
     "sonner": "^2.0.8",

@@ -615,12 +615,17 @@ and (storage.foldername(name))[1] in (select id::text from private.active_busine
 
 | Item | Content |
 |---|---|
-| Users | 1 platform admin, 2 owners (`owner-a@…`, `owner-b@…`, both the developer's own aliases) |
-| Businesses | **Acme Plumbing** and **Bloom Florist**, both `active`, timezone set |
-| Sources | Each business has one source allowing `http://localhost:3000` and `http://localhost:5500` (test HTML page). Acme has a second source, to test multiple websites |
-| Customers / inquiries | ~30 per business across all states: new (< 48h), awaiting (backdated > 48h), answered by email, answered manually, archived, unread/read. One returning customer with 3 inquiries |
-| Messages | A few `sent` replies and one `failed` reply (to test Retry) |
-| Events | Matching `received`, `reply_sent`, `reply_failed`, `marked_answered` and `archived` events |
+| Users | 1 platform admin, 2 owners (`owner-a@flowdesk.test`, `owner-b@flowdesk.test`, made-up addresses) |
+| Businesses | **Test Business A** and **Test Business B** (`test-business-a`, `test-business-b`), both `active`, timezone `Europe/Zagreb` |
+| Sources | Each business has "Main website", allowing `http://localhost:5500` (the test website, `npm run test-site`). Test Business A also has "Landing page" (same origin), to test multiple websites |
+| Customers / inquiries | 12 customers and 30 inquiries per business, spread over ~42 days: 7 new (< 48 h; some unread; one with a failed reply), 8 awaiting (backdated > 48 h), 12 answered (9 by email, 3 marked answered manually), 3 archived (2 unanswered, 1 answered), 5 unread in total. One returning customer (Marko Kovač) has 3 inquiries. Demo customers use `@seed.example.com` addresses, so no real person is ever emailed |
+| Messages | Per business: 10 `sent` replies and 1 `failed` reply (to test Retry) |
+| Events | Matching `received` (30), `reply_sent` (10), `reply_failed` (1), `marked_answered` (3) and `archived` (3) events, backdated to when each happened |
+
+Notes on the dev data:
+- `supabase/seed.sql` is re-runnable: it first deletes the demo customers (`@seed.example.com`), and the cascade removes their inquiries, messages and events. Real test submissions are kept. The first run on 2026-11-07 was applied without that `DELETE` (the tables were empty), so it was applied once.
+- Test Business A's **business email** was changed by hand (not in `seed.sql`) to the developer's own Resend account address. Until a sending domain is verified, Resend only delivers to that address, so this lets the new-inquiry notification email be received. Test Business B keeps its made-up address; its notifications are rejected by Resend and logged, which never affects the stored inquiry (PRD NOT-3).
+- Intake was verified end to end on 2026-11-07. It left 3 real test inquiries in Test Business A (subjects "Intake verification (JSON)", "Intake verification (HTML form)" and "Redirect probe"), which can be archived or deleted once the inquiry pages exist.
 
 Seed data is never applied to production.
 
