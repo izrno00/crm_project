@@ -14,6 +14,16 @@ function formatter(options: Intl.DateTimeFormatOptions, timeZone: string) {
   }
 }
 
+/** Up to two capital letters for an avatar: "Marko Kovač" → "MK", "jane@acme.com" → "JA". */
+export function initialsOf(name: string): string {
+  return name
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]!.toUpperCase())
+    .join("");
+}
+
 /** "7 Nov 2026, 14:05" in the given timezone. */
 export function formatDateTime(value: string | Date, timeZone: string): string {
   const date = typeof value === "string" ? new Date(value) : value;

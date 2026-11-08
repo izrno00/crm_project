@@ -3,8 +3,10 @@ import {
   acceptInviteSchema,
   changePasswordSchema,
   emailSchema,
+  emailSettingsSchema,
   inquiryListParamsSchema,
   passwordSchema,
+  replySchema,
   setPasswordSchema,
   signInSchema,
 } from "./validation";
@@ -156,5 +158,72 @@ describe("inquiryListParamsSchema", () => {
 
   it("ignores unknown params", () => {
     expect(inquiryListParamsSchema.parse({ utm_source: "x" })).toEqual(defaults);
+  });
+});
+
+describe("replySchema", () => {
+  const ids = {
+    inquiryId: "3f2a6c1e-5b7d-4e8f-9a0b-1c2d3e4f5a6b",
+    messageId: "7b8c9d0e-1f2a-4b3c-8d4e-5f6a7b8c9d0e",
+  };
+
+  it("accepts a reply and normalises its line breaks", () => {
+    expect(replySchema.parse({ ...ids, content: "  Hi Ana,\r\n\r\nYes.  " }).content).toBe("Hi Ana,\n\nYes.");
+  });
+
+  it("rejects an empty or whitespace-only reply", () => {
+    const result = replySchema.safeParse({ ...ids, content: " \n " });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toBe(v.replyRequired);
+  });
+
+  it("allows at most 10,000 characters, counting a Windows line break as one", () => {
+    expect(replySchema.safeParse({ ...ids, content: "x".repeat(10_000) }).success).toBe(true);
+    expect(replySchema.safeParse({ ...ids, content: "x".repeat(10_001) }).success).toBe(false);
+    expect(
+      replySchema.safeParse({ ...ids, content: "x".repeat(4_999) + "\r\n" + "x".repeat(5_000) }).success,
+    ).toBe(true);
+  });
+
+  it("rejects ids that are not uuids", () => {
+    expect(replySchema.safeParse({ ...ids, messageId: "1", content: "Hi" }).success).toBe(false);
+  });
+});
+
+describe("emailSettingsSchema", () => {
+  const valid = { senderName: "Acme Plumbing", replyToEmail: "", signature: "", bccReplies: false };
+
+  it("saves empty reply-to and signature as null (use the defaults)", () => {
+    expect(emailSettingsSchema.parse(valid)).toEqual({
+      senderName: "Acme Plumbing",
+      replyToEmail: null,
+      signature: null,
+      bccReplies: false,
+    });
+  });
+
+  it("keeps the sender name on one line", () => {
+    expect(emailSettingsSchema.parse({ ...valid, senderName: "  Acme\r\nPlumbing " }).senderName).toBe(
+      "Acme Plumbing",
+    );
+  });
+
+  it("requires a sender name of at most 200 characters", () => {
+    expect(emailSettingsSchema.safeParse({ ...valid, senderName: " " }).success).toBe(false);
+    expect(emailSettingsSchema.safeParse({ ...valid, senderName: "x".repeat(201) }).success).toBe(false);
+  });
+
+  it("checks the reply-to address", () => {
+    expect(emailSettingsSchema.parse({ ...valid, replyToEmail: " Help@Acme.Example " }).replyToEmail).toBe(
+      "help@acme.example",
+    );
+    const bad = emailSettingsSchema.safeParse({ ...valid, replyToEmail: "not-an-email" });
+    expect(bad.success).toBe(false);
+    expect(bad.error?.issues[0]?.message).toBe(v.replyToInvalid);
+  });
+
+  it("allows a signature of up to 1,000 characters", () => {
+    expect(emailSettingsSchema.parse({ ...valid, signature: "Best,\r\nMarko" }).signature).toBe("Best,\nMarko");
+    expect(emailSettingsSchema.safeParse({ ...valid, signature: "x".repeat(1_001) }).success).toBe(false);
   });
 });

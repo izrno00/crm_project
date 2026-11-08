@@ -10,6 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatReceived } from "@/lib/format";
+import type { InquiryListParams } from "@/lib/inquiry-list";
+import { inquiryHref } from "@/lib/inquiry-nav";
 import type { InquiryListItem } from "@/lib/queries/inquiries";
 import { cn } from "@/lib/utils";
 import { en } from "@/lib/strings/en";
@@ -23,12 +25,14 @@ type Props = {
   /** Website names by source id; the column only appears when `showSource` is true (LIST-1). */
   sourceNames: Record<string, string>;
   showSource: boolean;
+  /** The current list view; each row link remembers it so the detail page can return to it. */
+  view: InquiryListParams;
 };
 
 // The desktop list (LIST-1). The whole row is clickable through one stretched link in the
 // customer cell, so keyboard users get a single tab stop per inquiry. Unread rows (LIST-2) are
 // bold with a dot.
-export function InquiryTable({ items, timeZone, now, sourceNames, showSource }: Props) {
+export function InquiryTable({ items, timeZone, now, sourceNames, showSource, view }: Props) {
   return (
     <Table className="table-fixed">
       <TableCaption className="sr-only">{t.tableCaption}</TableCaption>
@@ -52,7 +56,7 @@ export function InquiryTable({ items, timeZone, now, sourceNames, showSource }: 
             </TableCell>
             <TableCell>
               <Link
-                href={`/inquiries/${inquiry.id}`}
+                href={inquiryHref(inquiry.id, view)}
                 className="flex items-start gap-2.5 outline-none after:absolute after:inset-0"
               >
                 {inquiry.isUnread ? (

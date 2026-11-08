@@ -287,6 +287,7 @@ The communication history. MVP rows are all outbound. The structure already supp
 
 Constraints:
 - `unique (rfc_message_id)`
+- One reply per inquiry (MVP): the partial unique index `messages_one_outbound_per_inquiry` on `(inquiry_id) where direction = 'outbound'` (§9, PRD REP-11)
 - `check ((direction = 'outbound' and status in ('sending','sent','failed')) or (direction = 'inbound' and status = 'received'))`
 - `check (status <> 'sent' or sent_at is not null)`
 
@@ -586,6 +587,7 @@ Owners therefore **cannot** change these through the API:
 | `messages` | `(inquiry_id, created_at)` | Timeline |
 | `messages` | `(business_id)`, `(customer_id)`, `(sent_by)` | FKs |
 | `messages` | `unique (rfc_message_id)`, `(provider_message_id)` | Threading, future webhooks |
+| `messages` | `messages_one_outbound_per_inquiry`: `unique (inquiry_id) where direction = 'outbound'` | One reply per inquiry (PRD REP-11, agreed 2026-11-08). Also stops a double send from two tabs. Inbound messages are not affected. Dropped when follow-ups are turned on (§13) |
 | `inquiry_events` | `(business_id, created_at desc)` | Dashboard activity feed |
 | `inquiry_events` | `(inquiry_id, created_at)`, `(message_id)`, `(actor_id)` | Timeline; FKs |
 
@@ -625,7 +627,8 @@ and (storage.foldername(name))[1] in (select id::text from private.active_busine
 Notes on the dev data:
 - `supabase/seed.sql` is re-runnable: it first deletes the demo customers (`@seed.example.com`), and the cascade removes their inquiries, messages and events. Real test submissions are kept. The first run on 2026-11-07 was applied without that `DELETE` (the tables were empty), so it was applied once.
 - Test Business A's **business email** was changed by hand (not in `seed.sql`) to the developer's own Resend account address. Until a sending domain is verified, Resend only delivers to that address, so this lets the new-inquiry notification email be received. Test Business B keeps its made-up address; its notifications are rejected by Resend and logged, which never affects the stored inquiry (PRD NOT-3).
-- Intake was verified end to end on 2026-11-07. It left 3 real test inquiries in Test Business A (subjects "Intake verification (JSON)", "Intake verification (HTML form)" and "Redirect probe"), which can be archived or deleted once the inquiry pages exist.
+- For testing replies (2026-11-08), the `inquiries.customer_email` of Test Business A's 20 inquiries without a sent reply, and the `messages.to_email` of its 2 failed replies, were changed by hand (not in `seed.sql`) to the same Resend account address, so replies and Retry are delivered in Resend test mode. The `customers` rows keep their `@seed.example.com` addresses (an email is unique per business). Re-running `seed.sql` undoes this, and so does `update inquiries i set customer_email = c.email from customers c where c.id = i.customer_id` for the business's inquiries.
+- Intake was verified end to end on 2026-11-07. It left 3 real test inquiries in Test Business A (subjects "Intake verification (JSON)", "Intake verification (HTML form)" and "Redirect probe"). They were deleted on 2026-11-08 while verifying the inquiry detail page, so Test Business A is back to the 30 seeded inquiries. Their two customers ("Intake Tester" and "Redirect Probe") remain with no inquiries; deleting an inquiry never removes its customer.
 
 Seed data is never applied to production.
 
@@ -643,6 +646,7 @@ Migration files are created with `supabase migration new <name>`; the CLI prefix
 6. `rls_policies_and_grants`: enable RLS, the policies, and the column grants
 7. `indexes`
 8. `storage_business_logos`: the bucket and storage policies
+9. `one_reply_per_inquiry`: the partial unique index `messages_one_outbound_per_inquiry` (Phase 6, 2026-11-08)
 
 After applying migrations:
 - run the Supabase **security and performance advisors** and fix every warning
@@ -663,5 +667,6 @@ All future tables follow the same rules: a `business_id` column, composite FKs a
 | **Internal notes** | `inquiry_notes` (business_id, inquiry_id, author_id, body, created_at), plus a `note_added` event type |
 | **Priority** | `inquiries.priority` enum (`low/normal/high`) |
 | **Attachments** | `message_attachments` (business_id, message_id, storage_path, filename, mime_type, size_bytes), plus a private bucket |
+| **Follow-up replies** | `drop index messages_one_outbound_per_inquiry`. No other changes: `in_reply_to` and `references_header` already exist for threading (PRD §11.3) |
 | **Delivery tracking** | Add `delivered_at`, `bounced_at` and `complained_at` to `messages`, updated by a Resend webhook matched on `provider_message_id` |
 | **Data retention** | `businesses.retention_days`, plus a scheduled job (`pg_cron`) |

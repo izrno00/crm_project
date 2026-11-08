@@ -57,7 +57,7 @@ export type InquirySummary = {
   isUnread: boolean;
 };
 
-const SUMMARY_COLUMNS = "id, customer_name, subject, created_at, status, is_unread";
+const SUMMARY_COLUMNS ="id, customer_name, subject, created_at, status, is_unread";
 
 type SummaryRow = {
   id: string | null;
@@ -68,7 +68,7 @@ type SummaryRow = {
   is_unread: boolean | null;
 };
 
-const toSummary = (row: SummaryRow): InquirySummary | null =>
+const toSummary =(row: SummaryRow): InquirySummary | null =>
   row.id && row.created_at
     ? {
         id: row.id,
@@ -80,7 +80,7 @@ const toSummary = (row: SummaryRow): InquirySummary | null =>
       }
     : null;
 
-const present = (items: (InquirySummary | null)[]) =>
+const present =(items: (InquirySummary | null)[]) =>
   items.filter((item): item is InquirySummary => item !== null);
 
 // The 5 most recent non-archived inquiries (DASH-3).

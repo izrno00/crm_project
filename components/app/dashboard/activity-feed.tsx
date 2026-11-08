@@ -1,33 +1,14 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import {
-  RiArchiveLine,
-  RiArrowGoBackLine,
-  RiCheckDoubleLine,
-  RiInboxUnarchiveLine,
-  RiMailAddLine,
-  RiMailCheckLine,
-  RiMailCloseLine,
-} from "@remixicon/react";
+import { eventIcons } from "@/components/app/event-icons";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireBusiness } from "@/lib/dal";
 import { formatAgo } from "@/lib/format";
-import { getActivityFeed, type EventType } from "@/lib/queries/dashboard";
+import { getActivityFeed } from "@/lib/queries/dashboard";
 import { requestTime } from "@/lib/time";
 import { cn } from "@/lib/utils";
 import { en } from "@/lib/strings/en";
 
 const t = en.dashboard.feed;
-
-const icons: Record<EventType, ReactNode> = {
-  received: <RiMailAddLine />,
-  reply_sent: <RiMailCheckLine />,
-  reply_failed: <RiMailCloseLine />,
-  marked_answered: <RiCheckDoubleLine />,
-  marked_unanswered: <RiArrowGoBackLine />,
-  archived: <RiArchiveLine />,
-  restored: <RiInboxUnarchiveLine />,
-};
 
 // The last events for the business, each linking to its inquiry (DASH-5).
 export async function ActivityFeed() {
@@ -61,7 +42,7 @@ export async function ActivityFeed() {
                       event.type === "reply_failed" && "bg-destructive/10 text-destructive",
                     )}
                   >
-                    {icons[event.type]}
+                    {eventIcons[event.type]}
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-medium">

@@ -86,7 +86,7 @@ The system has two independent parts:
 | `zod` (v4) | dep | Validation for the intake API, server actions and search params. Schemas are shared by client and server |
 | `@react-email/components` | dep | Reply and notification email templates as React components |
 | `next-themes` | dep | Light/dark toggle (class strategy, matching `@custom-variant dark` in `globals.css`) |
-| `vitest` | dev dep | Unit tests for pure logic (validation, origin matching, threading, formatting) |
+| `vitest` | dev dep | Unit tests for pure logic (validation, origin matching, reply content, formatting) |
 | shadcn components | via CLI/MCP | `sidebar`, `card`, `table`, `badge`, `input`, `textarea`, `label`, `field`, `select`, `tabs`, `dialog`, `alert-dialog`, `dropdown-menu`, `avatar`, `separator`, `skeleton`, `sonner`, `chart` (brings Recharts), `pagination`, `tooltip`, `breadcrumb`, `empty`, `spinner`. Check availability with the shadcn MCP first |
 
 ### 2.3 External services
@@ -160,7 +160,7 @@ lib/
   dal.ts                             getSession, requireUser, requireBusiness, requirePlatformAdmin
   actions/                           Server actions: auth.ts, inquiries.ts, replies.ts, settings.ts, admin.ts
   intake/                            schema.ts, origin.ts, rate-limit.ts, config.ts, respond.ts
-  email/                             sender.ts, send-reply.ts, notify.ts, threading.ts, render.ts
+  email/                             sender.ts, reply-content.ts, send-errors.ts, notify.ts, render.ts
   format.ts                          Date and time formatting in the business timezone
   queries/dashboard.ts               Dashboard reads (stats, chart, recent, needs attention, feed)
   time.ts                            requestTime(): the clock for server components, read only after a request-time API (§3)
@@ -495,7 +495,7 @@ Until the domain exists, `create_business_with_owner` stores a placeholder `send
 Platform emails (new-inquiry notifications) are sent from `"Flowdesk" <notifications@{PLATFORM_SENDING_DOMAIN}>`, or from `RESEND_FROM_EMAIL` in dev.
 
 ### 8.2 Templates (`emails/`)
-- **`reply-email.tsx`.** Business name and logo header, the owner's text (paragraphs from plain text), the signature, a divider, and "On {date}, {customer} wrote:" with the quoted original message. A plain-text version is rendered as well. User text is rendered as text nodes and is never injected as raw HTML.
+- **`reply-email.tsx`.** Business logo header (public URL of `logo_path`), or the business name when there is no logo, then the owner's text (line breaks kept), the signature, a divider, and "On {date}, {customer} wrote:" with the quoted original message. No Flowdesk footer: the email carries the business's identity. The plain-text version is built by `buildReplyText()` in `lib/email/reply-content.ts`, not by React Email's converter, so it is exactly what `messages.body_text` stores and "Show full email" displays. User text is rendered as text nodes and is never injected as raw HTML.
 - **`new-inquiry-email.tsx`.** Flowdesk-branded. Customer name, subject, the first 300 characters of the message, the source name, the received time (business timezone) and an "Open in Flowdesk" button linking to `{APP_URL}/inquiries/{id}`.
 - The default signature is `{owner full_name}\n{business name}`, used when `signature` is null.
 - Dates come from `lib/format.ts` (`Intl.DateTimeFormat` with the business `timezone`).
@@ -515,33 +515,36 @@ The existing `sendEmail()` wrapper should be extended:
 |---|---|---|
 | `sending` | Row created; the provider call is in progress | Spinner |
 | `sent` | Resend accepted the email (`sent_at`, `provider_message_id` set) | "Sent" |
-| `failed` | Resend returned an error (`error_message` set) | "Failed: {reason}" + **Retry** |
+| `failed` | Resend returned an error (`error_message` set) | "Failed: {friendly reason}" + **Retry** |
 
 A `sending` row older than 2 minutes means the process died mid-send. It is shown as "Unknown: check before retrying" and offers Retry.
 
+**One reply per inquiry (agreed 2026-11-08, PRD REP-11).** The partial unique index `messages_one_outbound_per_inquiry` (DB.md §9) allows one outbound message per inquiry, so two tabs or a double submit can never send twice. Follow-ups, with `In-Reply-To` / `References` threading, are planned (PRD §11.3); turning them on drops that index.
+
+**Error reasons (agreed 2026-11-08, PRD REP-8).** `error_message` stores the provider's raw error as `"{name} ({statusCode}): {message}"` (`formatProviderError` in `lib/email/send-errors.ts`), and the failure is logged with ids only. The detail query maps it to a short, plain-language sentence with `describeSendError` on the server, so the raw text is never rendered. Resend's test-mode error names the Resend account's own address, which is one reason it is not shown.
+
 ### 9.2 Send reply (`lib/actions/replies.ts` → `sendReply`)
-1. `requireBusiness()`. Validate `{ inquiryId, messageId, content }`. `messageId` is a UUID generated by the composer when it mounts, so a double-submit hits the primary key and cannot send twice.
-2. **RLS read** of the inquiry with the user client (id, customer, subject, message, created_at). If it is not found, stop.
-3. Build the email on the server:
+1. `requireBusiness()`. Validate `{ inquiryId, messageId, content }` with `replySchema` (content trimmed, 1–10,000 characters). `messageId` is a UUID generated by the composer when it mounts, so a double-submit hits the primary key and cannot send twice.
+2. **RLS read** of the inquiry from `inquiries_view` with the user client (customer, subject, message, created_at, is_archived). Stop if it is not found or archived (archived inquiries are read-only).
+3. Stop if the inquiry already has an outbound message (a friendly early check; the unique index is the real guard).
+4. Build the email on the server:
    - **Recipient:** the inquiry's `customer_email`.
-   - **Subject:** `Re: {subject}`.
-   - **Sender:** from §8.1.
-   - **Body:** rendered HTML and text.
-   - **Threading headers** (`lib/email/threading.ts`):
-     - `Message-ID: <{messageId}@{sending domain}>`
-     - For follow-ups: `In-Reply-To` = the previous sent outbound message's `rfc_message_id`, and `References` = the previous chain + that id.
-4. Insert the `messages` row with the **admin client**: `status 'sending'`, `attempt_count 1`, `sent_by = userId`, and all snapshots.
-5. ``sendEmail(payload, { idempotencyKey: `${messageId}:1` })``.
-6. Update the row with the admin client: `sent` + `sent_at` + `provider_message_id`, or `failed` + `error_message`. The DB trigger sets `answered_at` (first success) and inserts the `reply_sent` / `reply_failed` event (DB.md §7.4).
-7. `refresh()` and return the result. The composer clears on success and keeps the text on failure.
+   - **Subject:** `replySubject()`: `Re: {subject}`, with line breaks removed and no second `Re:` when the subject already starts with one.
+   - **Sender:** `resolveSender()` (§8.1).
+   - **Body:** `buildReplyText()` gives the plain text (also stored as `body_text`), and `renderReplyEmail()` gives the HTML.
+   - **Header:** `Message-ID: <{messageId}@{domain of the From address}>`. No `In-Reply-To` / `References` (no follow-ups yet).
+5. Insert the `messages` row with the **admin client**: `status 'sending'`, `attempt_count 1`, `last_attempt_at`, `sent_by = userId`, and all snapshots. A unique violation (`23505`) means the inquiry already has a reply: stop without sending.
+6. ``sendEmail(payload, { idempotencyKey: `${messageId}:1` })``. A thrown error counts as a failure.
+7. Update the row with the admin client: `sent` + `sent_at` + `provider_message_id`, or `failed` + `error_message`. The DB trigger sets `answered_at` (first success) and inserts the `reply_sent` / `reply_failed` event (DB.md §7.4).
+8. `refresh()` and return `{ ok: true }` or `{ ok: false, saved, error }`. Once the row is saved (sent or failed), the composer clears its text and draft and disappears (one reply per inquiry). Only when nothing was saved (validation, network, already replied) does it keep the text.
 
 **Retry** (`retryMessage(messageId)`):
-- Start with an RLS read of the message: it must be `failed` or stale `sending`.
-- Increment `attempt_count` and set `status 'sending'`.
-- Resend the **stored** `subject`, `body_html` and `body_text` to the stored recipient, with idempotency key `${messageId}:${attempt}`.
-- Then update the status as in step 6.
+- Start with an RLS read of the message and its inquiry: the message must be `failed` or stale `sending`, and the inquiry must not be archived.
+- **Claim** the attempt with one admin-client update that sets `status 'sending'`, `attempt_count = n + 1`, `last_attempt_at`, and the sender snapshots from the business's **current** settings (`from_name`, `from_email`, `reply_to_email`, `bcc_email`; agreed 2026-11-08, PRD REP-9). It only matches while `attempt_count` and `status` are still what was read, so a second click finds no row and stops.
+- Resend the **stored** `subject`, `body_html`, `body_text`, recipient and `Message-ID`, with the current sender and idempotency key `${messageId}:${n + 1}`.
+- Then update the status as in step 7 (`sent` also clears `error_message`).
 
-Verify during implementation that Resend keeps a custom `Message-ID` header. If it doesn't, store Resend's id and use custom `X-Flowdesk-Message-Id` and `References` headers instead. Inbound routing does not depend on it, because it uses `reply_token` (§10).
+Check during testing whether Resend keeps the custom `Message-ID` header. If it doesn't, follow-ups (later) will store Resend's id and use custom `X-Flowdesk-Message-Id` and `References` headers instead. Inbound routing does not depend on it, because it uses `reply_token` (§10).
 
 ### 9.3 Owner notification (`lib/email/notify.ts`)
 Called inside `after()` from the intake route, using the admin client:
@@ -568,7 +571,7 @@ The goal is for customer replies from normal email clients to appear in the inqu
    5. Forward a copy to the business email so their inbox still receives replies.
 4. Add `customer_replied` to `inquiry_event_type` if the activity feed should show it.
 
-Outbound threading headers (§9.2) are already in place, so customer mail clients will thread correctly before and after the switch.
+Every outbound reply already carries its own `Message-ID` (§9.2), so a customer's reply can be matched to it before and after the switch.
 
 ---
 
@@ -613,7 +616,7 @@ Each section is its own server component inside its own `<Suspense>` boundary, s
   - Search: name, email and subject, debounced (300 ms). `%`, `_`, `\` and `,` match literally. A `*` still acts as a wildcard, because PostgREST reads it as `%` in `ilike` values and it cannot be escaped (harmless: the search only covers the owner's own rows). Typing replaces the history entry; filter, sort and page changes push one, so Back restores the view (LIST-7). Any filter, sort or search change resets the page to 1
   - Received: absolute, in the business timezone: "7 Nov, 14:32", with the year added when it is not the current year
   - Pagination: shadcn `Pagination` with Prev/Next and page numbers with "…" gaps. A page number past the end redirects to the last page
-  - No row or bulk actions, no message preview. Each row links to `/inquiries/[id]`, which stays a placeholder until the detail page is built
+  - No row or bulk actions, no message preview. Each row links to `/inquiries/[id]?back=<list query>` (the `back` value is left out when the list view is the default one), so the detail page can return to the exact view (§11.4)
   - Empty states: no inquiries at all (the dashboard's empty state), no search match (with "Clear search"), no inquiries under a filter (with "Show all")
 
 ### 11.4 Inquiry detail (`/inquiries/[id]`)
@@ -621,7 +624,6 @@ Each section is its own server component inside its own `<Suspense>` boundary, s
   - the inquiry from `inquiries_view`
   - its `messages` (asc)
   - its `inquiry_events` (asc)
-  - up to 10 other inquiries from the same `customer_id`
   - the source name
 - **Timeline:** messages (with status) merged with the non-message events (`marked_answered`, `marked_unanswered`, `archived`, `restored`) by time. `reply_sent` and `reply_failed` events are not repeated here because the message row shows its status; they appear in the dashboard feed.
 - **Mark as read:** a small client component calls the `markRead` server action once on mount if the inquiry is unread. This avoids writing during render. "Mark as unread" sets `read_at = null`.
@@ -632,14 +634,33 @@ Each section is its own server component inside its own `<Suspense>` boundary, s
   - delete inquiry: user client `.delete()` + `AlertDialog`, then redirect to `/inquiries`
   - delete customer: user client `.delete()` on `customers` (cascade) + `AlertDialog` that lists the number of inquiries to be deleted
 - **Reply composer:** a `Textarea` with a character counter (max 10,000), Send disabled while pending or empty, toasts via `sonner`, and failed messages showing Retry.
+- **UI (agreed 2026-11-08):**
+  - **Scope:** the detail page is built in Phase 5 without the composer. The composer, Retry and the reply email come in Phase 6. Until then the composer slot is empty (no "coming soon" text), and a failed reply shows "Failed: {reason}" without a Retry button
+  - **Layout:** two columns from `lg` up. Left: the original message, the timeline and (Phase 6) the composer. Right: the customer card and the details card (status, received time in the business timezone, website). One column below `lg`
+  - **Thread:** the original message is the first card, each reply is a card below it, and status events (archived, restored, marked answered or unanswered) are thin one-line rows between them
+  - **Replies in the timeline:** what the owner wrote, a status badge (Sent / Failed with the reason / Unknown if `sending` for over 2 minutes), the time, and a "Show full email" toggle that reveals the email as sent (`body_text`: signature and quoted original)
+  - **Actions:** in the header. "Mark as answered" (while unanswered) and "Archive" / "Restore" are buttons. A "…" menu holds "Mark as unread", "Mark as unanswered" (only when `answered_manually` and no sent reply), and, set apart and in red, "Delete inquiry" and "Delete customer"
+  - **Delete customer:** an `AlertDialog` that states what will be deleted (customer name, number of inquiries and replies). No typed confirmation
+  - **After an action:** Archive keeps you on the page with an "archived" banner, a Restore button and a toast. Mark as unread goes back to the list with a toast. Deleting an inquiry or a customer goes back to the list with a toast
+  - **Archived inquiries are read-only:** the composer, Retry and the answered / unanswered actions are hidden until the inquiry is restored
+  - **No "other inquiries" list:** the detail page does not list the customer's other inquiries (removed 2026-11-08 at the owner's request; PRD DET-1 still mentions it). The customer's inquiries remain reachable by searching the list for their email
+  - **Back link:** "← Inquiries" returns to the exact list view the owner came from. The list links carry the view in a `back` search param. The detail page rebuilds the link from the parsed params with `inquiriesHref()`, so a crafted value can never redirect anywhere except `/inquiries?…`
+  - **Composer extras (Phase 6):** Ctrl/Cmd+Enter sends. A To / From / Subject line sits above the textarea. Below it, the business's actual signature is shown in muted text (agreed 2026-11-08), with a note that it and the customer's original message are added to the email. The draft is saved in the browser (`localStorage`, key `flowdesk:reply-draft:{inquiryId}`) if the owner leaves before sending. No confirmation dialog before sending
+  - **Replies (agreed 2026-11-08):**
+    - **One reply per inquiry.** The composer shows only while the inquiry is not archived and has no reply yet, including inquiries marked answered manually. Once a reply exists (sent or failed) the composer is gone. A failed reply is sent again only with its Retry button
+    - **While sending:** the Send button shows a spinner and "Sending…", and the textarea is locked. The reply appears in the timeline when the provider answers (no optimistic insert)
+    - **After sending:** a saved reply (sent or failed) clears the text and the draft, and a toast reports the result. Nothing saved (validation, network, already replied) keeps the text
+    - **Retry** shows on failed and unknown replies, never on an archived inquiry. A failed reply cannot be discarded
 
 ### 11.5 Settings (`/settings/*`)
 | Tab | Writes |
 |---|---|
 | Business | User client `update` on `businesses` (column grants allow only the permitted fields). The timezone `Select` is built from `Intl.supportedValuesOf('timeZone')`. **Logo:** the browser client uploads directly to Storage `business-logos/{business_id}/logo-{ts}.{ext}` (Storage RLS, 1 MB, png/jpeg/webp), then a server action saves `logo_path` and deletes the previous file |
-| Email | `sender_name`, `reply_to_email`, `signature`, `bcc_replies`. `sender_email` is displayed read-only |
+| Email | **Built in Phase 6 with replies (agreed 2026-11-08).** `sender_name`, `reply_to_email`, `signature`, `bcc_replies`. The sender address is displayed read-only as the address customers actually see (`resolveSender()`, §8.1). An empty reply-to or signature is saved as `null` (use the default) |
 | Integration | Read-only: each source's name, allowed origins, key (with a copy button), and the HTML/JS snippets from §7.5 built with `NEXT_PUBLIC_APP_URL` |
 | Account | `profiles.full_name`; email change via `auth.updateUser({ email })`; password change via `auth.updateUser({ password })` |
+
+**Tab bar (agreed 2026-11-08):** `app/(app)/settings/layout.tsx` shows the "Settings" heading and a tab bar with only the tabs that exist (Account and Email for now). Each tab is a link; the active one comes from `usePathname()`. The sidebar's Settings link still opens `/settings/account`.
 
 ### 11.6 Admin area (`/admin`)
 - `app/admin/layout.tsx` calls `requirePlatformAdmin()`; every admin action calls it again.
@@ -748,7 +769,7 @@ Migrations are the only way the schema changes. The Supabase dashboard is for in
 
 | Level | What | How |
 |---|---|---|
-| Unit | Intake schema, origin matching, redirect validation, sender resolution, threading headers, date formatting, search escaping | Vitest (`*.test.ts` next to the module) |
+| Unit | Intake schema, origin matching, redirect validation, sender resolution, reply subject and plain text, send-error mapping, date formatting, search escaping | Vitest (`*.test.ts` next to the module) |
 | Database / RLS | Owner A cannot select, update or delete any row of business B in any table. Suspended owners see no tenant data. Owners cannot update protected columns or insert messages. Service-only RPCs are not executable by `authenticated` | `supabase/tests/rls.sql`, run against dev inside `begin … rollback`, impersonating users with `set local role authenticated` + `set_config('request.jwt.claims', '{"sub":"<uuid>","role":"authenticated"}', true)` |
 | Advisors | No security or performance warnings | Supabase advisors after every migration |
 | Manual E2E | The checklist below | Local dev + a test HTML page served on `localhost:5500` |
@@ -774,7 +795,8 @@ Migrations are the only way the schema changes. The Supabase dashboard is for in
   - A forced failure (invalid from-domain) → Failed with the reason; Retry → Sent.
   - The BCC copy arrives when enabled.
   - The signature and quoted original appear.
-  - Follow-ups thread in the mail client.
+  - A second send on the same inquiry (two tabs) is refused: one reply per inquiry.
+  - Archived inquiry: no composer and no Retry.
 - **Isolation:** signed in as owner B, opening owner A's inquiry URL → not found. A direct supabase-js query with B's session returns no A rows.
 - **Suspension:** the owner is redirected to `/suspended`; intake → `403`; reactivating restores access.
 - **Deletes:** deleting a customer removes all their inquiries and messages; the dashboard updates.
@@ -812,7 +834,7 @@ Migrations are the only way the schema changes. The Supabase dashboard is for in
 | 3 | Admin area: list, onboarding, sources and keys, sender settings, suspension | A business can be onboarded without SQL |
 | 4 | Intake API, owner notification, local test website. **The Integration settings tab is deferred** and built in a later round | All intake checklist items pass |
 | 5 | Inquiry list and detail: filters, search, pagination, read/unread, mark answered, archive, deletes, timeline | List and detail checklist items pass |
-| 6 | Replies: templates, send, history, failure, retry, BCC, signature, threading | Reply checklist items pass |
+| 6 | Replies (one per inquiry): template, send, history, failure, retry, BCC, signature, plus the Email settings tab (moved here from Phase 8, agreed 2026-11-08) | Reply checklist items pass |
 | 7 | Dashboard: stats, chart, recent, needs attention, activity feed | Dashboard matches the seeded data |
-| 8 | Settings: business (with logo), email, account | Settings checklist items pass |
+| 8 | Settings: business (with logo), account. (Email was built in Phase 6.) | Settings checklist items pass |
 | 9 | Polish and launch: responsive and empty/loading/error states, landing page, prod project, Resend domain and SMTP, Vercel env, first admin | Full manual checklist passes on production |

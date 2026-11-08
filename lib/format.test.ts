@@ -1,10 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { formatAge, formatAgo, formatDateTime, formatDay, formatReceived } from "@/lib/format";
+import {
+  formatAge,
+  formatAgo,
+  formatDateTime,
+  formatDay,
+  formatReceived,
+  initialsOf,
+} from "@/lib/format";
 
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 const now = Date.parse("2026-11-07T12:00:00Z");
 const ago = (ms: number) => new Date(now - ms).toISOString();
+
+describe("initialsOf", () => {
+  it("uses the first letters of the first two words", () => {
+    expect(initialsOf("Marko Kovač")).toBe("MK");
+    expect(initialsOf("marko ivan kovač")).toBe("MI");
+  });
+
+  it("works for a single word and for an email address", () => {
+    expect(initialsOf("Cher")).toBe("C");
+    expect(initialsOf("jane@acme.com")).toBe("JA");
+  });
+
+  it("returns nothing for an empty name", () => {
+    expect(initialsOf("")).toBe("");
+    expect(initialsOf("  ")).toBe("");
+  });
+});
 
 describe("formatDateTime", () => {
   it("shows the time in the business timezone", () => {

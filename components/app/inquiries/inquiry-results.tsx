@@ -6,6 +6,7 @@ import { InquiryRow } from "@/components/app/inquiry-row";
 import { requireBusiness } from "@/lib/dal";
 import { formatReceived } from "@/lib/format";
 import { inquiriesHref, pageRange, type InquiryListParams } from "@/lib/inquiry-list";
+import { inquiryHref } from "@/lib/inquiry-nav";
 import { getInquiryList } from "@/lib/queries/inquiries";
 import { requestTime } from "@/lib/time";
 import { en } from "@/lib/strings/en";
@@ -40,6 +41,7 @@ export async function InquiryResults({ params }: { params: Promise<InquiryListPa
           now={now}
           sourceNames={sourceNames}
           showSource={showSource}
+          view={query}
         />
       </div>
 
@@ -48,6 +50,7 @@ export async function InquiryResults({ params }: { params: Promise<InquiryListPa
           <li key={inquiry.id}>
             <InquiryRow
               inquiry={inquiry}
+              href={inquiryHref(inquiry.id, query)}
               meta={formatReceived(inquiry.createdAt, business.timezone, now)}
             />
           </li>

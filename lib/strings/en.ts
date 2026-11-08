@@ -17,6 +17,12 @@ export const en = {
     nameTooLong: "Use at most 200 characters.",
     emailUnchanged: "That is already your login email.",
     passwordUnchanged: "Choose a password that is different from your current one.",
+    replyRequired: "Write a reply first.",
+    replyTooLong: (max: number) => `Use at most ${max.toLocaleString("en-GB")} characters.`,
+    senderNameRequired: "Enter a sender name.",
+    senderNameTooLong: "Use at most 200 characters.",
+    replyToInvalid: "Enter a valid email address, or leave this empty.",
+    signatureTooLong: (max: number) => `Use at most ${max.toLocaleString("en-GB")} characters.`,
   },
 
   auth: {
@@ -72,6 +78,9 @@ export const en = {
     email_change_partial:
       "Almost done: confirm the link we sent to your other address to finish changing your email.",
     email_changed: "Your login email was changed.",
+    inquiry_deleted: "Inquiry deleted.",
+    customer_deleted: "Customer and all of their inquiries deleted.",
+    inquiry_marked_unread: "Marked as unread.",
   },
 
   account: {
@@ -240,12 +249,127 @@ export const en = {
 
   inquiries: {
     listTitle: "Inquiries",
-    // The detail page is still a placeholder; it is built in a later phase.
     detailTitle: "Inquiry",
-    comingSoonTitle: "Coming soon",
-    comingSoonDescription:
-      "The inquiry detail view is being built next. For now, you can browse all of your inquiries in the list.",
     backToInquiries: "Back to inquiries",
+
+    // The detail page (PRD §5.5, Tech.md §11.4).
+    detail: {
+      back: "Inquiries",
+      backLabel: "Back to the list of inquiries",
+      archivedBadge: "Archived",
+      notFound: {
+        title: "Inquiry not found",
+        description:
+          "This inquiry doesn't exist or has been deleted. Check the link, or go back to your inquiries.",
+      },
+      banner: {
+        title: "This inquiry is archived",
+        description:
+          "It is hidden from your inquiry list and from the dashboard numbers. Restore it to change its status.",
+      },
+      actions: {
+        label: "Inquiry actions",
+        more: "More actions",
+        markAnswered: "Mark as answered",
+        markUnanswered: "Mark as unanswered",
+        markUnread: "Mark as unread",
+        archive: "Archive",
+        restore: "Restore",
+        deleteInquiry: "Delete inquiry",
+        deleteCustomer: "Delete customer",
+        working: "Working…",
+      },
+      toasts: {
+        answered: "Marked as answered.",
+        unanswered: "Marked as unanswered.",
+        archived: "Inquiry archived.",
+        restored: "Inquiry restored.",
+        replySent: "Reply sent.",
+        replyFailed: (reason: string) => `Reply not sent. ${reason}`,
+      },
+      errors: {
+        generic: "Something went wrong. Please try again.",
+        notFound: "This inquiry no longer exists.",
+        alreadyAnswered: "This inquiry was already answered.",
+        cannotUnanswer:
+          "This can't be undone because the inquiry was answered with an email reply.",
+        alreadyArchived: "This inquiry was already archived.",
+        notArchived: "This inquiry isn't archived.",
+        alreadyReplied: "This inquiry already has a reply.",
+        archivedReadOnly: "This inquiry is archived. Restore it first.",
+        cannotRetry: "This reply can't be sent again right now. Reload the page to see its status.",
+      },
+      deleteInquiryDialog: {
+        title: "Delete this inquiry?",
+        description: (replies: number) =>
+          `This permanently deletes the inquiry and its history${
+            replies > 0 ? `, including ${replies === 1 ? "1 reply" : `${replies} replies`}` : ""
+          }. This can't be undone.`,
+        confirm: "Delete inquiry",
+        cancel: "Cancel",
+      },
+      deleteCustomerDialog: {
+        title: (name: string) => `Delete ${name || "this customer"}?`,
+        description: (email: string, inquiries: number, replies: number) =>
+          `This permanently deletes ${email} and everything linked to them: ${
+            inquiries === 1 ? "1 inquiry" : `${inquiries} inquiries`
+          } and ${replies === 1 ? "1 reply" : `${replies} replies`}. This can't be undone.`,
+        confirm: "Delete customer",
+        cancel: "Cancel",
+      },
+      composer: {
+        heading: "Reply",
+        to: "To",
+        from: "From",
+        subject: "Subject",
+        label: "Your reply",
+        placeholder: (name: string) => `Write your reply to ${name || "the customer"}…`,
+        counter: (length: number, max: number) =>
+          `${length.toLocaleString("en-GB")} / ${max.toLocaleString("en-GB")}`,
+        signatureNote: "Added below your reply, followed by the customer's original message:",
+        shortcut: "Ctrl + Enter to send",
+        send: "Send reply",
+        sending: "Sending…",
+      },
+      original: {
+        heading: "Original message",
+        from: (name: string) => `From ${name}`,
+      },
+      timeline: {
+        label: "Communication history",
+        reply: "Your reply",
+        showFullEmail: "Show full email",
+        hideFullEmail: "Hide full email",
+        failedWith: (reason: string) => `Failed: ${reason}`,
+        failedUnknownReason: "Failed",
+        states: {
+          sent: "Sent",
+          failed: "Failed",
+          sending: "Sending…",
+          unknown: "Unknown",
+        },
+        unknownHelp: "This reply may not have been sent. Check before trying again.",
+        retry: "Retry",
+        retrying: "Sending…",
+        events: {
+          marked_answered: "Marked as answered manually",
+          marked_unanswered: "Marked as unanswered",
+          archived: "Archived",
+          restored: "Restored",
+        },
+      },
+      customer: {
+        heading: "Customer",
+        email: "Email",
+      },
+      info: {
+        heading: "Details",
+        status: "Status",
+        received: "Received",
+        website: "Website",
+        unknownWebsite: "—",
+      },
+    },
 
     unread: "Unread",
     filters: {
@@ -298,7 +422,57 @@ export const en = {
     },
   },
 
+  // Plain-language reasons for a reply the email provider did not accept (PRD REP-8). The
+  // provider's own error text is stored for support but never shown (Tech.md §9.1).
+  sendErrors: {
+    testing:
+      "Flowdesk can't send to this address yet because email sending is still being set up. Contact your administrator.",
+    sender: "The sender address isn't ready for sending yet. Contact your administrator, then retry.",
+    recipient: "The customer's email address was rejected. Check that it's correct.",
+    rateLimited: "Too many emails were sent at once. Wait a minute, then retry.",
+    quota: "The email sending limit has been reached. Contact your administrator.",
+    config: "Email sending isn't set up correctly. Contact your administrator.",
+    unavailable: "The email provider couldn't be reached. Please retry.",
+    rejected:
+      "The email provider didn't accept this email. Retry, or contact your administrator if it keeps failing.",
+  },
+
+  settings: {
+    title: "Settings",
+    description: "Manage your account and how your replies to customers are sent.",
+    tabs: {
+      label: "Settings sections",
+      account: "Account",
+      email: "Email",
+    },
+    email: {
+      title: "Email",
+      cardTitle: "Replies to customers",
+      cardDescription:
+        "How your replies look to customers, and where their answers go.",
+      senderName: "Sender name",
+      senderNameHelp: "Customers see this name as the sender of your replies.",
+      senderAddress: "Sender address",
+      senderAddressHelp: "Managed by your Flowdesk administrator.",
+      replyTo: "Reply-to address",
+      replyToHelp: (email: string) =>
+        `When a customer answers your reply, it goes here. Leave empty to use your business email (${email}).`,
+      signature: "Signature",
+      signatureHelp: "Added below every reply. Leave empty to use the default shown here.",
+      bcc: "BCC me on replies",
+      bccHelp: (email: string) => `Send a copy of every reply to ${email}.`,
+      submit: "Save email settings",
+      saved: "Email settings saved.",
+      errors: {
+        generic: "Something went wrong. Please try again.",
+      },
+    },
+  },
+
   emails: {
+    reply: {
+      quoteHeader: (date: string, name: string) => `On ${date}, ${name} wrote:`,
+    },
     newInquiry: {
       subject: (subject: string) => `New inquiry: ${subject}`,
       preview: (name: string) => `${name} sent you a message through your website.`,

@@ -173,10 +173,10 @@ The dashboard shows the owner, at a glance, what needs attention.
 | REP-5 | **Subject:** "Re: " followed by the original inquiry subject. |
 | REP-6 | **Body:** the owner's text, then the business's **signature**, then the customer's **original message quoted** below. The email uses a simple, clean layout with the business name and logo. A plain-text version is included. |
 | REP-7 | If the business has enabled **"BCC me on replies"**, a copy of every reply is sent to the business email. |
-| REP-8 | After sending, the reply appears in the communication history with a clear status. **Sent** means the email provider accepted the email. **Failed** means it was not accepted; the reason is shown. "Sent" does not guarantee the email reached the inbox. Delivery tracking is out of scope for the MVP. |
-| REP-9 | A failed reply has a **Retry** button that resends the same content. The history shows the latest result. |
+| REP-8 | After sending, the reply appears in the communication history with a clear status. **Sent** means the email provider accepted the email. **Failed** means it was not accepted; a short, plain-language reason is shown (the provider's technical error is kept for support but not shown). "Sent" does not guarantee the email reached the inbox. Delivery tracking is out of scope for the MVP. |
+| REP-9 | A failed reply has a **Retry** button that resends the same text, subject and recipient, using the business's **current** sender name, sender address, reply-to and BCC settings (so fixing a sender setting lets Retry succeed). The history shows the latest result. Failed replies cannot be discarded. Retry is not available on archived inquiries. |
 | REP-10 | The first successfully sent reply makes the inquiry **Answered**. |
-| REP-11 | The owner can send **multiple replies** (follow-ups) on the same inquiry; each is stored in the history. |
+| REP-11 | **One reply per inquiry (MVP).** Once an inquiry has a reply (sent or failed), the composer is no longer shown. If that reply failed, Retry is the only way to send it. An inquiry that was marked as answered manually can still get its one email reply. Follow-up replies are planned (§11.3). |
 | REP-12 | Customer replies are **not** imported into Flowdesk in the MVP; they arrive in the business's normal inbox. The history therefore shows outgoing messages only. |
 | REP-13 | The composer prevents sending an empty message and prevents double-sending from repeated clicks. |
 
@@ -356,7 +356,7 @@ Navigation for owners is a sidebar with Dashboard, Inquiries (with unread count)
 - Dashboard: stat cards, 30-day chart, recent inquiries, needs attention, activity feed
 - Inquiry list: status filter, search, sort, pagination, unread highlighting
 - Inquiry detail: customer info, original inquiry, history, actions
-- Email replies with business sender identity, signature, optional BCC, quoted original, Sent/Failed status and Retry
+- Email replies (one per inquiry) with business sender identity, signature, optional BCC, quoted original, Sent/Failed status and Retry
 - Manual "mark as answered", archive/restore, delete inquiry, delete customer
 - New-inquiry notification emails (toggle)
 - Business, email, integration and account settings
@@ -365,6 +365,7 @@ Navigation for owners is a sidebar with Dashboard, Inquiries (with unread count)
 
 ### 10.2 Out of scope (MVP)
 - Customer replies imported into Flowdesk (inbound email sync)
+- Follow-up replies (more than one reply per inquiry)
 - Automatic confirmation email to visitors
 - Email delivery, bounce and open tracking
 - Automatic retries of failed emails
@@ -400,12 +401,17 @@ Customer replies sent from their normal email client will appear in the inquiry'
 
 *Designed for now:* the history already distinguishes outgoing and incoming messages, every outgoing email carries threading information, and every inquiry has a unique reply reference. Turning this on later changes where replies are routed, not how data is stored.
 
-### 11.3 Planned: Self-registration
+### 11.3 Planned: Follow-up replies
+The owner will be able to send more than one reply on the same inquiry, and each follow-up will thread with the earlier emails in the customer's mail client.
+
+*Designed for now:* every reply already carries its own email `Message-ID`, and messages have columns for the threading headers. The database rule that allows only one reply per inquiry is a single index that is dropped when follow-ups are turned on.
+
+### 11.4 Planned: Self-registration
 Businesses sign up themselves and start in a "pending" state until approved or onboarded.
 
 *Designed for now:* account creation and business creation are already separate steps that registration can reuse.
 
-### 11.4 Potential
+### 11.5 Potential
 - **Multiple team members per business.** Already prepared: a person's access to a business is stored with a role, so employees can be added without restructuring.
 - Internal notes on inquiries
 - Inquiry priority levels

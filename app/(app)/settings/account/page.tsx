@@ -11,17 +11,12 @@ export const metadata: Metadata = { title: "Account" };
 
 const t = en.account;
 
+// The settings layout supplies the page heading and the tab bar.
 export default function AccountPage() {
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="font-heading text-3xl font-medium">{t.title}</h1>
-        <p className="text-muted-foreground">{t.description}</p>
-      </div>
-      <Suspense fallback={<AccountSkeleton />}>
-        <AccountContent />
-      </Suspense>
-    </div>
+    <Suspense fallback={<AccountSkeleton />}>
+      <AccountContent />
+    </Suspense>
   );
 }
 

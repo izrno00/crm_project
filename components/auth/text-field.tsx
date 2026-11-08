@@ -13,6 +13,9 @@ type TextFieldProps = {
   description?: string;
   errors?: string[];
   autoFocus?: boolean;
+  /** Defaults to true; optional fields pass false. */
+  required?: boolean;
+  placeholder?: string;
 };
 
 // A labelled input with its per-field error, wired for accessibility
@@ -26,6 +29,8 @@ export function TextField({
   description,
   errors,
   autoFocus,
+  required = true,
+  placeholder,
 }: TextFieldProps) {
   const id = useId();
   const invalid = !!errors?.length;
@@ -46,7 +51,8 @@ export function TextField({
         autoFocus={autoFocus}
         aria-invalid={invalid}
         aria-describedby={describedBy}
-        required
+        required={required}
+        placeholder={placeholder}
       />
       {description ? <FieldDescription id={`${id}-description`}>{description}</FieldDescription> : null}
       {invalid ? (

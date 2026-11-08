@@ -4,11 +4,20 @@ import type { InquirySummary } from "@/lib/queries/dashboard";
 import { cn } from "@/lib/utils";
 import { en } from "@/lib/strings/en";
 
-// One inquiry in the "Recent inquiries" and "Needs attention" cards. Unread ones are bold with a dot.
-export function InquiryRow({ inquiry, meta }: { inquiry: InquirySummary; meta: string }) {
+// One inquiry in the "Recent inquiries" and "Needs attention" cards and in the small-screen list.
+// Unread ones are bold with a dot. `href` lets the list keep its view in the link (lib/inquiry-nav.ts).
+export function InquiryRow({
+  inquiry,
+  meta,
+  href,
+}: {
+  inquiry: InquirySummary;
+  meta: string;
+  href?: string;
+}) {
   return (
     <Link
-      href={`/inquiries/${inquiry.id}`}
+      href={href ?? `/inquiries/${inquiry.id}`}
       className="flex items-start justify-between gap-3 rounded-2xl px-3 py-2.5 outline-none transition-colors hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50"
     >
       <div className="flex min-w-0 items-start gap-2.5">

@@ -11,15 +11,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { getProfile } from "@/lib/dal";
+import { initialsOf } from "@/lib/format";
 import { en } from "@/lib/strings/en";
-
-const initialsOf = (name: string) =>
-  name
-    .split(/[\s@.]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]!.toUpperCase())
-    .join("");
 
 // The account menu in the sidebar footer: name, email and Sign out. Reads the session,
 // so it renders behind a Suspense boundary (Tech.md §11.1).
